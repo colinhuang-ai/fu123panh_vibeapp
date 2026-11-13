@@ -1,14 +1,57 @@
 // ============================================================================
-// MÁY SOẠN BÀI 45 PHÚT - BỘ NÃO DẠY HỌC (TIẾNG ANH & NGỮ VĂN)
-// Tuân thủ 100% dac-ta-may-soan-bai.md & ho_so_lop_v1.md
+// ỨNG DỤNG: MÁY SOẠN BÀI 45 PHÚT - BỘ NÃO DẠY HỌC (TIẾNG ANH & NGỮ VĂN)
+// Phiên bản: 1.0 (Client-side, 100% độc lập, không cần backend / API key)
+// Tiêu chuẩn tuân thủ: ho_so_lop_v1.md & dac-ta-may-soan-bai.md
+//
+// MỤC LỤC CODE:
+// 1. BIẾN TOÀN CỤC & TRẠNG THÁI (Global State)
+// 2. CẤU HÌNH DỮ LIỆU CHUẨN (Presets, Level & Master Vocabulary)
+// 3. KHỞI TẠO & SỰ KIỆN ĐỔI MÔN (Init & Subject Switcher)
+// 4. XỬ LÝ FILE ĐÍNH KÈM & BẢO MẬT (File Upload & Privacy Sanitizer)
+// 5. ĐIỀU PHỐI SOẠN BÀI (Main Generator Controller)
+// 6. SOẠN GIÁO ÁN TIẾNG ANH A1 - B2 (English Lesson Generator)
+// 7. SOẠN GIÁO ÁN NGỮ VĂN 9 & 12 (Literature Lesson Generator)
+// 8. QUẢN LÝ GIỌNG VĂN & TIN NHẮN GỬI KÈM (Tone & Chat Draft Engine)
+// 9. CHẾ ĐỘ XEM & TRÌNH DIỄN FLASHCARD (View Modes & Flashcard Player)
+// 10. DUYỆT BẢN NHÁP & XUẤT DỮ LIỆU (Approval, Copy, Print & Markdown Export)
 // ============================================================================
 
-let currentSubject = 'eng'; // 'eng' hoặc 'van'
+// ----------------------------------------------------------------------------
+// 1. BIẾN TOÀN CỤC & TRẠNG THÁI ỨNG DỤNG (Global State)
+// ----------------------------------------------------------------------------
+/**
+ * currentSubject: Môn học hiện tại đang được chọn
+ * - 'eng': Tiếng Anh (Khung A1 -> B2)
+ * - 'van': Ngữ Văn (Ôn thi vào 10 & Tốt nghiệp THPT)
+ */
+let currentSubject = 'eng';
+
+/**
+ * currentFlashcards: Danh sách thẻ từ vựng / thuật ngữ đang hiển thị trên giao diện
+ * Mỗi phần tử gồm: { word, pos, meaning, exEn, exVi }
+ */
 let currentFlashcards = [];
+
+/**
+ * currentCardIndex: Vị trí thẻ flashcard đang được lật xem (bắt đầu từ 0)
+ */
 let currentCardIndex = 0;
+
+/**
+ * isApproved: Cờ đánh dấu giáo viên đã kiểm tra và bấm "Duyệt bản nháp" hay chưa
+ * - false: Bản nháp chờ duyệt (Màu vàng cam)
+ * - true: Đã duyệt (Màu xanh lá, sẵn sàng xuất file / gửi học sinh)
+ */
 let isApproved = false;
 
-// Cấu hình Trình độ & Chủ đề gợi ý theo môn
+
+// ----------------------------------------------------------------------------
+// 2. CẤU HÌNH DỮ LIỆU CHUẨN (Presets & Master Data)
+// ----------------------------------------------------------------------------
+
+/**
+ * Cấu hình danh mục cấp độ, mã học sinh mặc định và các chủ đề bấm nhanh theo từng môn.
+ */
 const SUBJECT_CONFIG = {
     eng: {
         levels: [
@@ -17,7 +60,7 @@ const SUBJECT_CONFIG = {
             { value: 'B1', label: 'B1 - Trung cấp (Intermediate)' },
             { value: 'B2', label: 'B2 - Trung cao cấp (Upper-Intermediate)' }
         ],
-        defaultCode: 'HS26-05-A',
+        defaultCode: 'HS26-05-A', // Định dạng mã ẩn danh: HS[Năm]-[Lớp]-[Môn]
         presets: [
             { label: '💼 Từ vựng Kinh Doanh (A2)', topic: 'Từ vựng về Kinh Doanh (Business)', level: 'A2' },
             { label: '🏫 Trường học & Môn học (A1)', topic: 'Trường học & Học tập (School & Study)', level: 'A1' },
@@ -41,7 +84,11 @@ const SUBJECT_CONFIG = {
     }
 };
 
-// Kho từ vựng chuẩn phân tách cố định theo đúng từng Level (A1, A2, B1, B2) - Mỗi bộ 25 từ vựng (trong khoảng 20-30 từ)
+/**
+ * Kho từ vựng chuẩn phân tách cố định theo đúng từng Level (A1, A2, B1, B2)
+ * Mỗi bộ có đúng 25 từ vựng (đáp ứng tiêu chuẩn 20 - 30 từ của quy cách giáo án 45 phút).
+ * Cấu trúc: { word, pos, meaning, exEn, exVi }
+ */
 const VOCAB_BY_LEVEL = {
     A1: {
         business: [
@@ -215,19 +262,39 @@ const VOCAB_BY_LEVEL = {
     }
 };
 
-// Khởi tạo ứng dụng khi mở trang
+
+// ----------------------------------------------------------------------------
+// 3. KHỞI TẠO & SỰ KIỆN ĐỔI MÔN (Init & Subject Switcher)
+// ----------------------------------------------------------------------------
+
+/**
+ * Lắng nghe sự kiện DOMContentLoaded để tự động thiết lập trạng thái ban đầu:
+ * Mặc định chọn môn Tiếng Anh và chạy thử ngay Ví dụ mẫu A2.
+ */
 window.addEventListener('DOMContentLoaded', () => {
     switchSubject('eng');
     loadSampleExample();
 });
 
-// Đổi môn học (Tiếng Anh <-> Ngữ Văn)
+/**
+ * Chuyển đổi qua lại giữa 2 môn học: Tiếng Anh ('eng') và Ngữ Văn ('van').
+ * Hàm này sẽ:
+ * 1. Đổi active tab môn học trên thanh giao diện.
+ * 2. Cập nhật lại danh sách <select id="levelSelect"> tương ứng.
+ * 3. Gợi ý mã học sinh mặc định theo chuẩn (HS26-05-A hoặc HS26-09-V).
+ * 4. Đổi nhãn & gợi ý của ô nhập từ vựng / ngữ liệu.
+ * 5. Tái tạo các nút bấm chọn nhanh chủ đề mẫu (Preset chips).
+ *
+ * @param {'eng' | 'van'} subj - Mã môn học cần kích hoạt
+ */
 function switchSubject(subj) {
     currentSubject = subj;
+
+    // 1. Cập nhật giao diện nút tab
     document.getElementById('tabEng').classList.toggle('active', subj === 'eng');
     document.getElementById('tabVan').classList.toggle('active', subj === 'van');
 
-    // Cập nhật danh sách cấp độ
+    // 2. Điền danh sách cấp độ vào dropdown
     const levelSelect = document.getElementById('levelSelect');
     levelSelect.innerHTML = '';
     SUBJECT_CONFIG[subj].levels.forEach(item => {
@@ -237,10 +304,10 @@ function switchSubject(subj) {
         levelSelect.appendChild(opt);
     });
 
-    // Cập nhật mã ẩn danh gợi ý
+    // 3. Đặt mã học sinh mặc định phù hợp với môn
     document.getElementById('studentCode').value = SUBJECT_CONFIG[subj].defaultCode;
 
-    // Đổi nhãn ô nhập từ vựng/ngữ liệu
+    // 4. Đổi nhãn & văn bản hướng dẫn ô textarea
     const vocabLabel = document.querySelector('#vocabInputGroup label');
     const customVocab = document.getElementById('customVocab');
     if (subj === 'eng') {
@@ -251,7 +318,7 @@ function switchSubject(subj) {
         customVocab.placeholder = 'Dán đoạn thơ/văn bản đọc hiểu hoặc câu hỏi nghị luận riêng của bạn vào đây (nếu có)...';
     }
 
-    // Tạo các nút chủ đề gợi ý nhanh
+    // 5. Tạo các chip chủ đề gợi ý nhanh để giáo viên bấm là soạn ngay
     const presetContainer = document.getElementById('presetContainer');
     presetContainer.innerHTML = '';
     SUBJECT_CONFIG[subj].presets.forEach(p => {
@@ -268,7 +335,17 @@ function switchSubject(subj) {
     });
 }
 
-// Đọc file .txt / .csv / .md do giáo viên tải lên
+
+// ----------------------------------------------------------------------------
+// 4. XỬ LÝ FILE ĐÍNH KÈM & BẢO MẬT (File Upload & Privacy Sanitizer)
+// ----------------------------------------------------------------------------
+
+/**
+ * Đọc file văn bản (.txt, .csv, .md) giáo viên tải lên máy cục bộ.
+ * Không upload lên bất kỳ máy chủ nào (an toàn dữ liệu 100%).
+ *
+ * @param {Event} event - Sự kiện change từ thẻ <input type="file">
+ */
 function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -280,12 +357,17 @@ function handleFileUpload(event) {
     reader.readAsText(file, 'UTF-8');
 }
 
+/**
+ * Xóa trắng ô đính kèm file và ô nhập ngữ liệu textarea.
+ */
 function clearVocabInput() {
     document.getElementById('vocabFile').value = '';
     document.getElementById('customVocab').value = '';
 }
 
-// Chạy ngay Ví dụ mẫu trong dac-ta-may-soan-bai.md
+/**
+ * Bấm chạy thử tức thì kịch bản mẫu: Tiếng Anh A2 - Từ vựng Kinh doanh.
+ */
 function loadSampleExample() {
     switchSubject('eng');
     document.getElementById('levelSelect').value = 'A2';
@@ -295,7 +377,35 @@ function loadSampleExample() {
     handleGenerate(new Event('submit'));
 }
 
-// Xử lý sự kiện bấm nút Soạn Bản Nháp
+/**
+ * BỘ LỌC BẢO MẬT: Tự động phát hiện và che giấu số điện thoại nếu giáo viên
+ * vô tình dán thông tin liên lạc thật vào mã học sinh hoặc đề bài.
+ * Tuân thủ nguyên tắc bảo vệ quyền riêng tư học sinh trong ho_so_lop_v1.md.
+ *
+ * @param {string} input - Chuỗi văn bản đầu vào
+ * @returns {string} - Chuỗi văn bản đã được che SĐT bằng "[ĐÃ ẨN SĐT]"
+ */
+function sanitizePrivacy(input) {
+    return input.replace(/(0|\+84)[0-9]{8,10}/g, '[ĐÃ ẨN SĐT]');
+}
+
+
+// ----------------------------------------------------------------------------
+// 5. ĐIỀU PHỐI SOẠN BÀI (Main Generator Controller)
+// ----------------------------------------------------------------------------
+
+/**
+ * Hàm điều phối chính khi giáo viên bấm nút "⚡ Soạn Bản Nháp Giáo Án (45 Phút)".
+ * Quy trình xử lý:
+ * 1. Thu thập dữ liệu từ Form (Level, Student Code, Topic, Custom Context, Tone).
+ * 2. Đặt lại trạng thái phê duyệt về "BẢN NHÁP CHỜ DUYỆT" (chưa duyệt).
+ * 3. Gọi hàm soạn bài chuyên biệt:
+ *    - generateEnglishLesson() nếu môn là Tiếng Anh
+ *    - generateLiteratureLesson() nếu môn là Ngữ Văn
+ * 4. Cập nhật hộp tin nhắn nháp (updateChatDraft) để giáo viên sẵn sàng copy gửi Zalo.
+ *
+ * @param {Event} event - Sự kiện submit của form
+ */
 function handleGenerate(event) {
     if (event) event.preventDefault();
 
@@ -305,28 +415,35 @@ function handleGenerate(event) {
     const customText = document.getElementById('customVocab').value.trim();
     const toneKey = document.getElementById('toneSelect').value;
 
-    // Đặt lại trạng thái về BẢN NHÁP CHỜ DUYỆT
+    // Reset cờ duyệt bản nháp
     isApproved = false;
     const badge = document.getElementById('approvalBadge');
     badge.textContent = '⏳ Trạng thái: BẢN NHÁP CHỜ DUYỆT';
     badge.classList.remove('approved');
 
+    // Phân luồng soạn bài theo môn
     if (currentSubject === 'eng') {
         generateEnglishLesson(topic, level, studentCode, customText, toneKey);
     } else {
         generateLiteratureLesson(topic, level, studentCode, customText, toneKey);
     }
 
+    // Tự sinh nội dung tin nhắn gửi kèm
     updateChatDraft(topic, level, studentCode, toneKey);
 }
 
-// Bộ lọc bảo mật: Không cho phép lưu số điện thoại vào hồ sơ
-function sanitizePrivacy(input) {
-    return input.replace(/(0|\+84)[0-9]{8,10}/g, '[ĐÃ ẨN SĐT]');
-}
-
-// Lấy danh sách từ vựng: Nếu không kèm file, chỉ lấy cố định theo đúng 1 Level giáo viên đã chọn (VD: chọn A2 chỉ ra 12 thẻ chuẩn A2)
+/**
+ * Trích xuất danh sách từ vựng chuẩn hóa:
+ * - Nếu giáo viên tự nhập text/tải file: Tách từng dòng theo mẫu "Từ - Loại từ - Nghĩa".
+ * - Nếu để trống: Lấy trọn vẹn 25 từ cố định theo đúng 1 Level đã chọn (A1, A2, B1 hoặc B2).
+ *
+ * @param {string} topic - Chủ đề bài học
+ * @param {string} level - Cấp độ (A1, A2, B1, B2)
+ * @param {string} customText - Ngữ liệu nhập tay (nếu có)
+ * @returns {Array<Object>} - Mảng 20 - 30 đối tượng từ vựng
+ */
 function resolveVocabularyList(topic, level, customText) {
+    // Trường hợp 1: Giáo viên tự cung cấp danh sách từ vựng riêng
     if (customText) {
         const lines = customText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         const parsed = lines.map((line, idx) => {
@@ -345,29 +462,55 @@ function resolveVocabularyList(topic, level, customText) {
         if (parsed.length > 0) return parsed.slice(0, 30);
     }
 
-    // Chỉ lấy kho từ vựng cố định của đúng Level được chọn (A1, A2, B1 hoặc B2)
+    // Trường hợp 2: Lấy bộ từ vựng cố định chuẩn xác theo Level được chọn
     const levelPack = VOCAB_BY_LEVEL[level] || VOCAB_BY_LEVEL.A2;
     const t = topic.toLowerCase();
 
+    // Nếu chủ đề liên quan tới trường học và cấp độ có gói từ trường học
     if ((t.includes('trường') || t.includes('school') || t.includes('học')) && levelPack.school) {
         return levelPack.school;
     }
 
+    // Mặc định lấy gói kinh doanh / đời sống thực tế
     return levelPack.business;
 }
 
-// ============================================================================
-// 1. SOẠN GIÁO ÁN TIẾNG ANH (A1 - B2, 45 PHÚT)
-// ============================================================================
+
+// ----------------------------------------------------------------------------
+// 6. SOẠN GIÁO ÁN TIẾNG ANH A1 - B2 (English Lesson Generator)
+// ----------------------------------------------------------------------------
+
+/**
+ * Tạo giáo án Tiếng Anh 45 phút chuẩn cấu trúc 3 phần:
+ * - PHẦN 1: Lý thuyết ngắn gọn & 2 Công thức ngữ pháp trọng tâm (10 phút)
+ * - PHẦN 2: Bộ Flashcard 20-30 từ & 30 câu dịch chéo xen kẽ (20 phút):
+ *           + 15 câu Anh -> Việt (câu lẻ)
+ *           + 15 câu Việt -> Anh (câu chẵn)
+ * - PHẦN 3: 50 câu bài tập nhỏ chia đều vào 5 dạng (mỗi dạng 10 câu) (10 phút):
+ *           + Dạng 1: Điền từ vào chỗ trống
+ *           + Dạng 2: Tìm và sửa lỗi sai
+ *           + Dạng 3: Trắc nghiệm 4 lựa chọn (A/B/C/D)
+ *           + Dạng 4: Mệnh đề Đúng / Sai (True / False)
+ *           + Dạng 5: Sắp xếp lại trật tự từ thành câu
+ * - PHẦN 4: Hộp đáp án chi tiết dành riêng cho giáo viên (tự động ẩn khi in phiếu học sinh).
+ *
+ * @param {string} topic - Chủ đề bài giảng
+ * @param {string} level - Cấp độ (A1 -> B2)
+ * @param {string} studentCode - Mã ẩn danh của học sinh
+ * @param {string} customText - Ngữ liệu tùy chỉnh
+ * @param {string} toneKey - Khóa quy định giọng văn & xưng hô
+ */
 function generateEnglishLesson(topic, level, studentCode, customText, toneKey) {
+    // 1. Trích xuất danh sách từ vựng chuẩn
     const vocabList = resolveVocabularyList(topic, level, customText);
     currentFlashcards = vocabList;
     currentCardIndex = 0;
     renderCurrentFlashcard();
 
+    // 2. Lấy câu chào mở đầu theo giọng xưng hô
     const toneGreeting = getToneInstruction(toneKey);
 
-    // Tạo bảng Flashcard (10 - 12 thẻ)
+    // 3. Xây dựng bảng hiển thị Flashcard (20-30 từ vựng)
     const flashcardRows = vocabList.map((v, i) => `
         <tr>
             <td><strong>#${i + 1}</strong></td>
@@ -378,23 +521,23 @@ function generateEnglishLesson(topic, level, studentCode, customText, toneKey) {
         </tr>
     `).join('');
 
-    // Tạo 30 câu dịch chéo xen kẽ (15 câu Anh -> Việt, 15 câu Việt -> Anh) - Đã sửa Lỗi số 1
+    // 4. Tạo 30 câu dịch chéo xen kẽ 1-1 (15 Anh -> Việt & 15 Việt -> Anh)
     const crossItems = [];
     const crossAnswers = [];
     for (let i = 0; i < 30; i++) {
         const item = vocabList[i % vocabList.length];
         if (i % 2 === 0) {
-            // Câu lẻ (1, 3, 5, ..., 29): Tiếng Anh -> Dịch sang Tiếng Việt
+            // Câu lẻ (1, 3, 5...): Đọc câu tiếng Anh -> Yêu cầu dịch sang tiếng Việt
             crossItems.push(`<li><strong>Câu ${i + 1} [Anh ➔ Việt]:</strong> Dịch câu sau sang tiếng Việt: <em>"${item.exEn}"</em> (Từ trọng tâm: <strong>${item.word}</strong>)</li>`);
             crossAnswers.push(`<li><strong>Câu ${i + 1} [Anh ➔ Việt]:</strong> ${item.exVi}</li>`);
         } else {
-            // Câu chẵn (2, 4, 6, ..., 30): Tiếng Việt -> Dịch sang Tiếng Anh
+            // Câu chẵn (2, 4, 6...): Đọc câu tiếng Việt -> Yêu cầu dịch sang tiếng Anh có từ khóa
             crossItems.push(`<li><strong>Câu ${i + 1} [Việt ➔ Anh]:</strong> Dịch câu sau sang tiếng Anh (có dùng từ <strong>${item.word}</strong>): <em>"${item.exVi}"</em></li>`);
             crossAnswers.push(`<li><strong>Câu ${i + 1} [Việt ➔ Anh]:</strong> ${item.exEn}</li>`);
         }
     }
 
-    // Sinh 5 dạng bài tập nhỏ, mỗi dạng đủ 10 câu (Đã sửa Lỗi số 3)
+    // 5. Sinh 5 dạng bài tập nhỏ (Mỗi dạng đúng 10 câu = Tổng cộng 50 bài tập rèn luyện)
     const d1Items = [], d1Ans = [];
     const d2Items = [], d2Ans = [];
     const d3Items = [], d3Ans = [];
@@ -407,19 +550,19 @@ function generateEnglishLesson(topic, level, studentCode, customText, toneKey) {
         const wAlt2 = vocabList[(k + 2) % vocabList.length];
         const wAlt3 = vocabList[(k + 3) % vocabList.length];
 
-        // Dạng 1: Điền từ vào chỗ trống (Ngữ pháp & Loại từ - 10 câu)
+        // Dạng 1: Điền từ vào chỗ trống
         d1Items.push(`<li><strong>Câu ${k + 1}:</strong> Điền từ đúng vào câu: <em>"${wMain.exEn.replace(new RegExp(wMain.word, 'i'), '__________')}"</em> (Gợi ý lựa chọn: <strong>${wMain.word}</strong> / <strong>${wAlt1.word}</strong>)</li>`);
         d1Ans.push(`<li><strong>Dạng 1 - Câu ${k + 1}:</strong> <code>${wMain.word}</code> (${wMain.meaning} - loại từ: ${wMain.pos}).</li>`);
 
-        // Dạng 2: Tìm và sửa lỗi sai trong câu (10 câu)
+        // Dạng 2: Tìm và sửa lỗi sai trong câu
         d2Items.push(`<li><strong>Câu ${k + 1}:</strong> Tìm lỗi sai trong câu: <em>"Every day, we <u>checks</u> (A) the <u>${wMain.word}</u> (B) carefully <u>in</u> (C) our <u>lesson</u> (D)."</em> ➔ Sửa lỗi: ...............</li>`);
         d2Ans.push(`<li><strong>Dạng 2 - Câu ${k + 1}:</strong> Sai ở <strong>(A) checks</strong> ➔ sửa thành <strong>check</strong> (Chủ ngữ "we" đi với động từ nguyên mẫu).</li>`);
 
-        // Dạng 3: Trắc nghiệm khoanh A / B / C / D (10 câu)
+        // Dạng 3: Trắc nghiệm khoanh A / B / C / D
         d3Items.push(`<li><strong>Câu ${k + 1}:</strong> Từ tiếng Anh nào dưới đây mang nghĩa là <strong>"${wMain.meaning}"</strong> (${wMain.pos})?<br>A. ${wMain.word} &nbsp;&nbsp;&nbsp; B. ${wAlt1.word} &nbsp;&nbsp;&nbsp; C. ${wAlt2.word} &nbsp;&nbsp;&nbsp; D. ${wAlt3.word}</li>`);
         d3Ans.push(`<li><strong>Dạng 3 - Câu ${k + 1}:</strong> Chọn <strong>A (${wMain.word})</strong> = ${wMain.meaning}.</li>`);
 
-        // Dạng 4: Kiểm tra mệnh đề Đúng / Sai (True / False - 10 câu)
+        // Dạng 4: Mệnh đề Đúng / Sai (True / False)
         if (k % 2 === 0) {
             d4Items.push(`<li><strong>Câu ${k + 1}:</strong> Từ vựng "<strong>${wMain.word}</strong>" (${wMain.pos}) trong tiếng Việt có nghĩa là "<strong>${wMain.meaning}</strong>". [ <strong>True / False</strong> ]</li>`);
             d4Ans.push(`<li><strong>Dạng 4 - Câu ${k + 1}:</strong> <strong>True (Đúng)</strong> (${wMain.word} = ${wMain.meaning}).</li>`);
@@ -428,7 +571,7 @@ function generateEnglishLesson(topic, level, studentCode, customText, toneKey) {
             d4Ans.push(`<li><strong>Dạng 4 - Câu ${k + 1}:</strong> <strong>False (Sai)</strong> (Vì "${wMain.word}" nghĩa là "${wMain.meaning}", không phải "${wAlt2.meaning}").</li>`);
         }
 
-        // Dạng 5: Sắp xếp từ thành câu / Đặt câu hoàn chỉnh (10 câu)
+        // Dạng 5: Sắp xếp từ thành câu hoàn chỉnh
         const wordsShuffled = wMain.exEn.replace(/\./g, '').split(' ').reverse().join(' / ') + ' / .';
         d5Items.push(`<li><strong>Câu ${k + 1}:</strong> Sắp xếp các từ sau thành câu hoàn chỉnh (có chứa từ <strong>${wMain.word}</strong>):<br><code>${wordsShuffled}</code></li>`);
         d5Ans.push(`<li><strong>Dạng 5 - Câu ${k + 1}:</strong> <em>${wMain.exEn}</em> (${wMain.exVi})</li>`);
@@ -438,6 +581,7 @@ function generateEnglishLesson(topic, level, studentCode, customText, toneKey) {
     const v2 = vocabList[2] || vocabList[0];
     const v9 = vocabList[9] || vocabList[0];
 
+    // 6. Kết hợp toàn bộ các thành phần thành chuỗi HTML hoàn chỉnh
     const html = `
         <h2>GIÁO ÁN BẢN NHÁP TIẾNG ANH: ${topic.toUpperCase()}</h2>
         <div class="lesson-meta">
@@ -529,12 +673,37 @@ function generateEnglishLesson(topic, level, studentCode, customText, toneKey) {
         </div>
     `;
 
+    // 7. Render vào vùng soạn thảo contenteditable để giáo viên trực tiếp sửa
     document.getElementById('lessonEditor').innerHTML = html;
 }
 
-// ============================================================================
-// 2. SOẠN GIÁO ÁN NGỮ VĂN (ÔN THI VÀO 10 & TỐT NGHIỆP THPT - 45 PHÚT)
-// ============================================================================
+
+// ----------------------------------------------------------------------------
+// 7. SOẠN GIÁO ÁN NGỮ VĂN 9 & 12 (Literature Lesson Generator)
+// ----------------------------------------------------------------------------
+
+/**
+ * Tạo giáo án Ngữ Văn 45 phút chuẩn cấu trúc cày đề & rèn kỹ năng diễn đạt:
+ * - PHẦN 1: Kiến thức nền & Công thức trả lời chuẩn form Bộ GD & Sở GD (10 phút):
+ *           + Công thức 3 bước ăn trọn điểm câu Biện pháp tu từ
+ *           + Công thức Dàn ý 5 đoạn/ý viết Nghị luận xã hội 200 chữ hoặc 600 chữ
+ * - PHẦN 2: Bộ thẻ 10 thuật ngữ/cụm từ ăn điểm & 15 câu luyện chuyển đổi diễn đạt (20 phút):
+ *           + Nâng cấp câu văn thô -> giàu hình ảnh & cảm xúc
+ *           + Giải mã hình ảnh nghệ thuật -> thông điệp tư tưởng
+ * - PHẦN 3: 25 câu bài tập nhỏ chia vào 5 dạng (mỗi dạng 5 câu) (10 phút):
+ *           + Dạng 1: Điền thuật ngữ / từ nối lập luận
+ *           + Dạng 2: Phát hiện và sửa lỗi diễn đạt / ngữ pháp
+ *           + Dạng 3: Trắc nghiệm nhận diện cấu trúc đề thi
+ *           + Dạng 4: Đúng / Sai về kỹ thuật làm bài thi
+ *           + Dạng 5: Thực hành viết mở đoạn, giải thích, phản đề & liên hệ
+ * - PHẦN 4: Hướng dẫn chấm & biểu điểm chi tiết dành cho giáo viên duyệt.
+ *
+ * @param {string} topic - Chủ đề bài học (NLXH hoặc Đọc hiểu)
+ * @param {string} level - Cấp độ: 'VAO_10' (Lớp 9) hoặc 'THPT' (Lớp 12)
+ * @param {string} studentCode - Mã ẩn danh học sinh
+ * @param {string} customText - Ngữ liệu / đề bài do giáo viên tải lên
+ * @param {string} toneKey - Khóa giọng văn & xưng hô
+ */
 function generateLiteratureLesson(topic, level, studentCode, customText, toneKey) {
     const levelName = level === 'VAO_10'
         ? 'Ôn thi vào lớp 10 (Lớp 9 - Bám sát cấu trúc Sở GD / Hải Phòng)'
@@ -542,7 +711,7 @@ function generateLiteratureLesson(topic, level, studentCode, customText, toneKey
 
     const toneGreeting = getToneInstruction(toneKey);
 
-    // Bộ thẻ thuật ngữ & từ vựng diễn đạt ăn điểm cho phần Flashcard Văn
+    // Bộ 10 thẻ thuật ngữ lý luận & từ khóa diễn đạt nâng cao
     currentFlashcards = [
         { word: 'Ẩn dụ & Hoán dụ', pos: 'Biện pháp tu từ', meaning: 'Gọi tên sự vật A bằng B (ẩn dụ dựa trên nét tương đồng; hoán dụ dựa trên nét gần gũi)', exEn: 'Tác dụng: Tăng sức gợi hình, gợi cảm và làm nổi bật chiều sâu tư tưởng.' },
         { word: 'Bản lĩnh & Nội lực', pos: 'Từ khóa NLXH', meaning: 'Sức mạnh tinh thần bên trong giúp con người đứng vững trước nghịch cảnh', exEn: 'Câu mẫu: Bản lĩnh không phải là không biết sợ, mà là dám bước tiếp dù lòng đầy nỗi sợ.' },
@@ -736,9 +905,17 @@ function generateLiteratureLesson(topic, level, studentCode, customText, toneKey
     document.getElementById('lessonEditor').innerHTML = html;
 }
 
-// ============================================================================
-// GIỌNG VĂN & XƯNG HÔ CHUẨN TỪ ho_so_lop_v1.md
-// ============================================================================
+
+// ----------------------------------------------------------------------------
+// 8. QUẢN LÝ GIỌNG VĂN & TIN NHẮN GỬI KÈM (Tone & Chat Draft Engine)
+// ----------------------------------------------------------------------------
+
+/**
+ * Trả về cấu hình xưng hô và câu mở đầu mẫu theo quy ước trong ho_so_lop_v1.md.
+ *
+ * @param {string} toneKey - Khóa chọn giọng văn ('chi_em_35', 'chi_em_912', 'toi_anhchi', 'phu_huynh')
+ * @returns {{ label: string, opening: string }}
+ */
 function getToneInstruction(toneKey) {
     switch (toneKey) {
         case 'chi_em_35':
@@ -765,7 +942,15 @@ function getToneInstruction(toneKey) {
     }
 }
 
-// Cập nhật hộp tin nhắn nháp đi kèm bài học
+/**
+ * Tự động cập nhật nội dung tin nhắn soạn nháp vào ô textarea dưới cùng.
+ * Giáo viên chỉ cần bấm copy để gửi qua Zalo/Messenger cho học sinh hoặc phụ huynh.
+ *
+ * @param {string} topic - Tên chủ đề
+ * @param {string} level - Cấp độ
+ * @param {string} studentCode - Mã ẩn danh học sinh
+ * @param {string} toneKey - Khóa giọng điệu
+ */
 function updateChatDraft(topic, level, studentCode, toneKey) {
     const chatArea = document.getElementById('chatDraftArea');
     if (toneKey === 'chi_em_35') {
@@ -779,9 +964,19 @@ function updateChatDraft(topic, level, studentCode, toneKey) {
     }
 }
 
-// ============================================================================
-// CHẾ ĐỘ XEM, LẬT THẺ FLASHCARD & DUYỆT BẢN NHÁP
-// ============================================================================
+
+// ----------------------------------------------------------------------------
+// 9. CHẾ ĐỘ XEM & TRÌNH DIỄN FLASHCARD (View Modes & Flashcard Player)
+// ----------------------------------------------------------------------------
+
+/**
+ * Đổi chế độ hiển thị trên cột phải của ứng dụng:
+ * - 'full': Bản Giáo Viên (Hiển thị đầy đủ mọi nội dung kèm Hộp đáp án chi tiết).
+ * - 'student': Phiếu Giao Học Sinh (Ẩn toàn bộ khu vực đáp án bằng class CSS .hide-answers để in hoặc giao bài).
+ * - 'flashcard': Chế Độ Lật Thẻ Flashcard Tương Tác (Mở sân khấu flashcard 3D lên đầu trang).
+ *
+ * @param {'full' | 'student' | 'flashcard'} mode - Chế độ xem cần chuyển tới
+ */
 function switchViewMode(mode) {
     document.getElementById('btnViewFull').classList.toggle('active', mode === 'full');
     document.getElementById('btnViewStudent').classList.toggle('active', mode === 'student');
@@ -803,6 +998,9 @@ function switchViewMode(mode) {
     }
 }
 
+/**
+ * Render dữ liệu của thẻ flashcard hiện tại (theo currentCardIndex) lên giao diện thẻ lật.
+ */
 function renderCurrentFlashcard() {
     if (!currentFlashcards.length) return;
     const card = currentFlashcards[currentCardIndex];
@@ -812,28 +1010,47 @@ function renderCurrentFlashcard() {
     document.getElementById('cardMeaning').textContent = card.meaning;
     document.getElementById('cardExample').textContent = card.exEn;
 
+    // Reset về mặt trước của thẻ khi chuyển thẻ mới
     document.getElementById('cardFront').classList.remove('hidden');
     document.getElementById('cardBack').classList.add('hidden');
 }
 
+/**
+ * Lật qua lại giữa mặt trước (Từ vựng + Loại từ) và mặt sau (Nghĩa + Câu ví dụ).
+ */
 function flipCurrentCard() {
     document.getElementById('cardFront').classList.toggle('hidden');
     document.getElementById('cardBack').classList.toggle('hidden');
 }
 
+/**
+ * Chuyển tới thẻ flashcard tiếp theo (vòng tròn lặp lại khi hết danh sách).
+ */
 function nextCard() {
     if (!currentFlashcards.length) return;
     currentCardIndex = (currentCardIndex + 1) % currentFlashcards.length;
     renderCurrentFlashcard();
 }
 
+/**
+ * Quay lại thẻ flashcard phía trước.
+ */
 function prevCard() {
     if (!currentFlashcards.length) return;
     currentCardIndex = (currentCardIndex - 1 + currentFlashcards.length) % currentFlashcards.length;
     renderCurrentFlashcard();
 }
 
-// Giáo viên bấm Duyệt bản nháp
+
+// ----------------------------------------------------------------------------
+// 10. DUYỆT BẢN NHÁP & XUẤT DỮ LIỆU (Approval, Copy, Print & Markdown Export)
+// ----------------------------------------------------------------------------
+
+/**
+ * Giáo viên bấm nút "✔️ Tôi Đã Chỉnh Sửa & Duyệt Bản Nháp":
+ * - Chuyển huy hiệu trạng thái sang màu xanh lá: "ĐÃ ĐƯỢC GIÁO VIÊN DUYỆT".
+ * - Bật cờ isApproved = true để đánh dấu giáo án chính thức có thể gửi đi.
+ */
 function approveLesson() {
     isApproved = true;
     const badge = document.getElementById('approvalBadge');
@@ -842,6 +1059,9 @@ function approveLesson() {
     showToast('Đã xác nhận duyệt bản nháp! Bạn có thể Sao chép hoặc Tải về để gửi học sinh.');
 }
 
+/**
+ * Sao chép toàn bộ nội dung giáo án (kể cả những chỗ giáo viên đã gõ sửa trực tiếp) vào Clipboard.
+ */
 function copyApprovedContent() {
     const text = document.getElementById('lessonEditor').innerText;
     navigator.clipboard.writeText(text).then(() => {
@@ -849,6 +1069,9 @@ function copyApprovedContent() {
     });
 }
 
+/**
+ * Sao chép tin nhắn nháp (kèm bài giảng) từ ô textarea vào Clipboard.
+ */
 function copyChatMessage() {
     const msg = document.getElementById('chatDraftArea').value;
     navigator.clipboard.writeText(msg).then(() => {
@@ -856,6 +1079,11 @@ function copyChatMessage() {
     });
 }
 
+/**
+ * Tải toàn bộ giáo án về máy dưới dạng file Markdown (.md).
+ * Tên file được đặt tự động theo cấu trúc chuẩn:
+ * giao-an-45p-[MãHọcSinh]-[TênChủĐề].md
+ */
 function downloadMarkdown() {
     const studentCode = document.getElementById('studentCode').value.trim() || 'HS26';
     const topic = document.getElementById('topicInput').value.trim() || 'bai-giang';
@@ -875,6 +1103,11 @@ function downloadMarkdown() {
     showToast('Đã tải file giáo án (.md) về máy!');
 }
 
+/**
+ * Hiển thị thanh thông báo ngắn (Toast) ở góc dưới màn hình và tự động biến mất sau 3.2 giây.
+ *
+ * @param {string} message - Nội dung thông báo cần hiển thị
+ */
 function showToast(message) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
