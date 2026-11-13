@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Máy Soạn Bài 45 Phút - Bộ Não Dạy Học (Tiếng Anh & Ngữ Văn)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Thanh Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="logo-badge">📚 MÁY SOẠN BÀI v1</div>
+            <div>
+                <h1>Trợ Lý Soạn Giáo Án 45 Phút (Tiếng Anh & Ngữ Văn)</h1>
+                <p class="subtitle">Chuẩn hóa theo <code>ho_so_lop_v1.md</code> & <code>dac-ta-may-soan-bai.md</code> • Không cần đăng nhập • Không cần khóa API</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="rule-pill">🔒 Chế độ: AI Soạn Nháp – Giáo Viên Duyệt Cuối</span>
+        </div>
+    </header>
+
+    <!-- Khung chính 2 cột -->
+    <main class="main-container">
+        <!-- CỘT TRÁI: ĐẦU VÀO -->
+        <section class="panel input-panel">
+            <div class="panel-header">
+                <h2>1. Đầu Vào Bài Giảng</h2>
+                <span class="badge">Thời lượng chuẩn: 45 phút</span>
+            </div>
+
+            <form id="lessonForm" onsubmit="handleGenerate(event)">
+                <!-- Chọn Môn Học -->
+                <div class="form-group">
+                    <label>Môn học cần soạn:</label>
+                    <div class="subject-tabs">
+                        <button type="button" class="tab-btn active" id="tabEng" onclick="switchSubject('eng')">
+                            🇬🇧 Tiếng Anh (A1 – B2)
+                        </button>
+                        <button type="button" class="tab-btn" id="tabVan" onclick="switchSubject('van')">
+                            ✍️ Ngữ Văn (Ôn thi 10 & THPT)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chọn Trình Độ / Cấp Độ -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="levelSelect">Trình độ / Cấp độ:</label>
+                        <select id="levelSelect" required>
+                            <!-- JS sẽ tự động cập nhật theo môn -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="studentCode">Mã ẩn danh học sinh (Không ghi tên thật):</label>
+                        <input type="text" id="studentCode" value="HS26-09-A" placeholder="VD: HS26-05-A, HS26-12-V" required>
+                        <small class="hint">Đúng quy tắc: HS[Năm]-[Lớp]-[Môn: T/V/A]</small>
+                    </div>
+                </div>
+
+                <!-- Chủ đề bài giảng -->
+                <div class="form-group">
+                    <label for="topicInput">Chủ đề bài giảng (Topic / Chuyên đề):</label>
+                    <input type="text" id="topicInput" placeholder="VD: Từ vựng về Kinh Doanh (Business) / Nghị luận xã hội về Ý chí..." required>
+                    <div class="preset-chips" id="presetContainer">
+                        <!-- Các chủ đề mẫu bấm nhanh -->
+                    </div>
+                </div>
+
+                <!-- File từ vựng / Tài liệu đính kèm (Tùy chọn) -->
+                <div class="form-group" id="vocabInputGroup">
+                    <label for="customVocab">
+                        File từ vựng / Ngữ liệu riêng của bạn <span class="optional-tag">(Tùy chọn)</span>:
+                    </label>
+                    <div class="file-upload-bar">
+                        <input type="file" id="vocabFile" accept=".txt,.csv,.md" onchange="handleFileUpload(event)">
+                        <button type="button" class="btn-secondary btn-sm" onclick="clearVocabInput()">Xoá file/ô nhập</button>
+                    </div>
+                    <textarea id="customVocab" rows="4" placeholder="Nếu bạn để trống không tải file, máy sẽ TỰ SOẠN 20 - 30 thẻ từ vựng cố định theo đúng 1 trình độ Level bạn đã chọn ở trên (VD: chọn A2 thì chỉ ra 20 - 30 từ vựng chuẩn A2)...&#10;Nếu muốn tự nhập, gõ mỗi dòng 1 từ theo mẫu: Từ - Từ loại - Nghĩa tiếng Việt"></textarea>
+                </div>
+
+                <!-- Chọn Giọng Văn & Xưng Hô (từ ho_so_lop_v1.md) -->
+                <div class="form-group">
+                    <label for="toneSelect">Giọng văn & Cách xưng hô (Theo Hồ Sơ Lớp v1):</label>
+                    <select id="toneSelect">
+                        <option value="chi_em_35">Lớp 3–5: "Chị - em" (Hướng dẫn nhẹ nhàng, bám sát SGK)</option>
+                        <option value="chi_em_912" selected>Lớp 9–12: "Chị - em" (Vui vẻ, thân thiện, gửi tài liệu cày đề)</option>
+                        <option value="toi_anhchi">Lớp 9–12 (Nghiêm khắc): "Tôi - Anh/chị" (Khi học sinh nản chí, ương bướng)</option>
+                        <option value="phu_huynh">Gửi Phụ huynh: "Chị - em / Cô - cháu" (Báo cáo tiến độ & bài tập)</option>
+                    </select>
+                </div>
+
+                <!-- Nút tạo bản nháp -->
+                <div class="action-buttons">
+                    <button type="submit" class="btn-primary">
+                        ⚡ Soạn Bản Nháp Giáo Án (45 Phút)
+                    </button>
+                    <button type="button" class="btn-outline" onclick="loadSampleExample()">
+                        🎯 Chạy thử Ví dụ mẫu (A2 - Kinh Doanh)
+                    </button>
+                </div>
+            </form>
+
+            <!-- Hộp nhắc Điều không được làm -->
+            <div class="rules-box">
+                <h3>🛡️ Nguyên tắc an toàn đang bật:</h3>
+                <ul>
+                    <li>✅ Không bịa kiến thức hay học phí (Lớp 3-5: <code>200k/1.5h</code> | Lớp 9-12: <code>250k/1.5h</code>).</li>
+                    <li>✅ Không lộ tên thật/SĐT học sinh (chỉ dùng mã ẩn danh như <code>HS26-09-V</code>).</li>
+                    <li>✅ Không tự động gửi tin nhắn — Giáo viên chỉnh sửa trực tiếp trên bản nháp và duyệt cuối.</li>
+                    <li>✅ Chạy 100% độc lập trên máy, không bắt đăng nhập hay nhập API Key.</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- CỘT PHẢI: ĐẦU RA & CHỈNH SỬA DUYỆT NHÁP -->
+        <section class="panel output-panel">
+            <div class="panel-header">
+                <div>
+                    <h2>2. Bản Nháp Đầu Ra (Giáo Viên Chỉnh Sửa & Duyệt)</h2>
+                    <p class="small-note">💡 Bạn có thể <strong>bấm trực tiếp vào bất kỳ dòng chữ nào bên dưới để sửa nội dung</strong> trước khi bấm Duyệt!</p>
+                </div>
+                <div class="approval-status" id="approvalBadge">
+                    ⏳ Trạng thái: BẢN NHÁP CHỜ DUYỆT
+                </div>
+            </div>
+
+            <!-- Thanh tab chế độ xem -->
+            <div class="output-toolbar">
+                <div class="view-tabs">
+                    <button type="button" class="view-btn active" id="btnViewFull" onclick="switchViewMode('full')">
+                        📋 Bản Giáo Viên (Có Đáp Án)
+                    </button>
+                    <button type="button" class="view-btn" id="btnViewStudent" onclick="switchViewMode('student')">
+                        🎓 Phiếu Giao Học Sinh (Ẩn Đáp Án)
+                    </button>
+                    <button type="button" class="view-btn" id="btnViewCard" onclick="switchViewMode('flashcard')">
+                        🃏 Chế Độ Lật Thẻ Flashcard
+                    </button>
+                </div>
+                <div class="export-actions">
+                    <button type="button" class="btn-approve" id="btnApprove" onclick="approveLesson()">
+                        ✔️ Tôi Đã Chỉnh Sửa & Duyệt Bản Nháp
+                    </button>
+                    <button type="button" class="btn-secondary" onclick="copyApprovedContent()">
+                        📋 Sao chép
+                    </button>
+                    <button type="button" class="btn-secondary" onclick="downloadMarkdown()">
+                        💾 Tải file .md
+                    </button>
+                    <button type="button" class="btn-secondary" onclick="window.print()">
+                        🖨️ In / Lưu PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Khu vực hiển thị Flashcard Tương tác (ẩn mặc định) -->
+            <div id="interactiveFlashcardArea" class="flashcard-stage hidden">
+                <div class="flashcard-controls">
+                    <span id="cardCounter">Thẻ 1 / 12</span>
+                    <div>
+                        <button type="button" class="btn-sm btn-secondary" onclick="prevCard()">⬅️ Trước</button>
+                        <button type="button" class="btn-sm btn-primary" onclick="flipCurrentCard()">🔄 Lật thẻ (Xem nghĩa & Câu ví dụ)</button>
+                        <button type="button" class="btn-sm btn-secondary" onclick="nextCard()">Tiếp ➡️</button>
+                    </div>
+                </div>
+                <div class="flashcard-box" id="flashcardBox" onclick="flipCurrentCard()">
+                    <div class="flashcard-front" id="cardFront">
+                        <span class="card-hint">Bấm vào thẻ để lật xem nghĩa</span>
+                        <h3 id="cardWord">Revenue</h3>
+                        <p id="cardPos">(n) - Danh từ</p>
+                    </div>
+                    <div class="flashcard-back hidden" id="cardBack">
+                        <h4 id="cardMeaning">Doanh thu</h4>
+                        <p id="cardExample">Our store's revenue increased this week.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vùng soạn thảo Giáo án (ContentEditable để giáo viên sửa trực tiếp) -->
+            <div id="lessonEditor" class="lesson-editor" contenteditable="true" spellcheck="false">
+                <!-- Nội dung giáo án sẽ được render vào đây -->
+            </div>
+
+            <!-- Hộp tin nhắn nháp để copy gửi cho Học sinh / Phụ huynh -->
+            <div class="message-draft-box">
+                <div class="draft-header">
+                    <span>💬 <strong>Tin nhắn soạn nháp kèm bài học</strong> (Bạn kiểm tra rồi tự bấm copy gửi Zalo/Mess):</span>
+                    <button type="button" class="btn-sm btn-secondary" onclick="copyChatMessage()">📋 Copy tin nhắn</button>
+                </div>
+                <textarea id="chatDraftArea" rows="3"></textarea>
+            </div>
+        </section>
+    </main>
+
+    <!-- Thông báo Toast -->
+    <div id="toast" class="toast hidden">Đã sao chép vào bộ nhớ tạm!</div>
+
+    <script src="app.js"></script>
+</body>
+</html>
